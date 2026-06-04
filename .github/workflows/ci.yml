@@ -1,0 +1,25 @@
+name: CI
+
+# Fast PR gate — typecheck, build, and unit tests (no live browser, no API key).
+# This is the status check branch protection should require before merging.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run test:ci

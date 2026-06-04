@@ -1,0 +1,35 @@
+name: Bug report
+description: Something Sentinel did wrong — a crash, a wrong verdict, a perception miss.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report! A minimal repro (a spec or command) is the fastest path to a fix.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did Sentinel do, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro
+      description: The exact command or spec (redact secrets). E.g. `sentinel try <url> --task "..."`.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Verdict / logs
+      description: Paste the verdict, error, or relevant log lines (run with `--json` if useful).
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`sentinel --version` (or commit), Node version, OS."
+    validations:
+      required: true

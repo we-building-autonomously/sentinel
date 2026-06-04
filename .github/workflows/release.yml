@@ -1,0 +1,49 @@
+name: Release
+
+# Publishes @sentinel/qa to npm when you publish a GitHub Release.
+# Gated: it re-runs typecheck + unit tests + a clean build (via prepublishOnly)
+# before publishing, so a broken build can never reach npm.
+#
+# Auth: uses npm "trusted publishing" via OIDC (no token needed) once you've
+# linked this repo+workflow on npmjs.com. If you prefer a token instead, add an
+# NPM_TOKEN secret and it'll be used as a fallback.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance + trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      # Fail fast before publishing (prepublishOnly also runs these).
+      - run: npm run typecheck
+      - run: npm run test:ci
+      - run: npm run build
+
+      # Verify package.json version matches the release tag (e.g. tag v0.2.0 → 0.2.0).
+      - name: Check version matches tag
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG=${GITHUB_REF_NAME#v}
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::package.json ($PKG) != release tag ($TAG). Bump the version to match the tag."
+            exit 1
+          fi
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # ignored when OIDC trusted publishing is configured

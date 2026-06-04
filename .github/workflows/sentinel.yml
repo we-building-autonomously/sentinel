@@ -4,7 +4,8 @@ name: Sentinel E2E
 on:
   push:
     branches: [main]
-  pull_request:
+  # PRs are validated by ci.yml (fast, no key). This live E2E suite needs an
+  # API key + browser, so it runs only on main and on demand.
   workflow_dispatch:
     inputs:
       suite:
