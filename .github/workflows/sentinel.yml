@@ -1,0 +1,77 @@
+name: Sentinel E2E
+
+# Run the browser-native QA suite on every push/PR, and on demand.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Path to the suite file
+        default: specs/example.suite.yaml
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+      # Restore the accumulated run history so regression detection compares
+      # against previous CI runs, not just this one.
+      - name: Restore run history
+        uses: actions/cache@v4
+        with:
+          path: runs
+          key: sentinel-runs-${{ github.run_id }}
+          restore-keys: sentinel-runs-
+
+      # The live browser suite needs an API key. It runs on the main repo (where
+      # the secret exists); on fork PRs the secret is absent, so it's skipped and
+      # build + unit tests stay the gate for outside contributors.
+      - name: Run Sentinel suite
+        if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node dist/cli.js suite "${{ github.event.inputs.suite || 'specs/example.suite.yaml' }}" --junit sentinel-junit.xml
+
+      # Aggregate the trend dashboard and FAIL the build if any spec regressed
+      # (was passing in a prior run, now isn't). Pings Slack if the secret is set.
+      - name: Regression gate
+        if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        env:
+          SENTINEL_SLACK_WEBHOOK: ${{ secrets.SENTINEL_SLACK_WEBHOOK }}
+        run: node dist/cli.js history --fail-on-regression
+
+      - name: Publish report + history
+        if: ${{ always() && secrets.ANTHROPIC_API_KEY != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-report
+          path: |
+            runs/**
+            sentinel-junit.xml
+
+      - name: Surface results in the checks UI
+        if: ${{ always() && secrets.ANTHROPIC_API_KEY != '' }}
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: sentinel-junit.xml
+          fail_on_failure: true

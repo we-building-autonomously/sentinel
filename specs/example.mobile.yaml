@@ -1,0 +1,16 @@
+# Same app, mobile viewport — catches responsive bugs (hamburger nav, stacked
+# layouts, touch targets). `viewport` accepts a preset (mobile/tablet/desktop),
+# a Playwright device name ("iPhone 13"), or WIDTHxHEIGHT.
+title: TodoMVC works on mobile
+viewport: mobile
+task: Add a todo "Pack bags" and mark it complete.
+intent: >
+  On the narrow mobile layout, the item "Pack bags" can be added and completed,
+  and the remaining-count updates to 0 — i.e. the flow is usable on a phone.
+# Optional page-load budget (ms): violations are reported and judged.
+perfBudget:
+  loadMs: 5000
+  fcpMs: 2500
+app:
+  name: TodoMVC
+  url: https://demo.playwright.dev/todomvc/

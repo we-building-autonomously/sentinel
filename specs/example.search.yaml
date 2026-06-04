@@ -1,0 +1,9 @@
+title: Wikipedia search returns an article
+task: Search for "Playwright (software)" and open the article.
+intent: >
+  After searching, the user lands on an article page whose heading is about
+  Playwright the software testing framework (not the theatrical playwright).
+app:
+  name: Wikipedia
+  url: https://en.wikipedia.org
+  notes: Use the search box in the page header.

@@ -1,0 +1,28 @@
+# A suite that logs in ONCE and reuses the authenticated session for every
+# test — no repeated logins, faster and less flaky. Point it at a real app
+# and fill in real credentials (they are redacted from all reports).
+name: Authenticated app suite
+concurrency: 2
+defaults:
+  app:
+    name: My App
+    url: https://app.example.com
+    auth:
+      username: qa@example.com
+      password: change-me
+  maxSteps: 30
+
+# Runs first, sequentially. On pass, its cookies + localStorage are reused.
+login:
+  title: Log in
+  task: Log in with the provided credentials and reach the authenticated home.
+  intent: After login the app shows an authenticated view (account menu / dashboard) for qa@example.com.
+
+specs:
+  - title: View account settings
+    task: Open the account settings page.
+    intent: The settings page loads and shows the signed-in user's email.
+
+  - title: Create an item
+    task: Create a new item/record via the primary "New" action and give it a name.
+    intent: The newly created item appears in the list after saving.

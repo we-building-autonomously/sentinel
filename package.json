@@ -1,0 +1,81 @@
+{
+  "name": "@sentinel/qa",
+  "version": "0.1.0",
+  "description": "Browser-native testing harness — a QA agent that drives a real browser like a user and returns a pass/fail verdict with commentary",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/we-building-autonomously/sentinel.git"
+  },
+  "homepage": "https://github.com/we-building-autonomously/sentinel#readme",
+  "bugs": "https://github.com/we-building-autonomously/sentinel/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "qa",
+    "testing",
+    "e2e",
+    "browser",
+    "agent",
+    "playwright",
+    "anthropic",
+    "claude",
+    "ai",
+    "llm"
+  ],
+  "bin": {
+    "sentinel": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "specs",
+    "README.md",
+    "ARCHITECTURE.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "serve": "node dist/cli.js serve",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "npm run build && node dist/cli.js doctor && node dist/cli.js run specs/example.todomvc.json",
+    "test:ci": "vitest run --exclude '**/*.live.test.ts'",
+    "prepublishOnly": "npm run typecheck && npm run test:ci && rm -rf dist && tsc -p tsconfig.json --sourceMap false"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.69.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "axe-core": "^4.12.0",
+    "dotenv": "^16.4.7",
+    "pixelmatch": "^5.3.0",
+    "playwright": "^1.50.0",
+    "pngjs": "^7.0.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pixelmatch": "^5.2.6",
+    "@types/pngjs": "^6.0.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

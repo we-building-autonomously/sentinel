@@ -1,0 +1,19 @@
+# Testing a protected staging / preview environment. Any combination of:
+#   headers          – e.g. a Vercel/Cloudflare protection-bypass token
+#   httpCredentials  – HTTP basic auth (the browser sends it on a 401 challenge)
+#   cookies          – e.g. a feature-flag or pre-seeded session cookie
+# All of these are REDACTED from every report artifact.
+title: Staging smoke
+task: Load the staging homepage and confirm the app shell renders.
+intent: The authenticated app shell (nav + main content) is visible — not a 401/403 or a login wall.
+app:
+  name: My App (staging)
+  url: https://staging.example.com
+  headers:
+    x-vercel-protection-bypass: TODO-bypass-token
+  httpCredentials:
+    username: staging
+    password: TODO-basic-auth-password
+  cookies:
+    - name: ff_new_dashboard
+      value: "on"

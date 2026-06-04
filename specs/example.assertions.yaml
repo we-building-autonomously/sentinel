@@ -1,0 +1,71 @@
+# Demonstrates Sentinel's deterministic assertions + the security audit,
+# which run ALONGSIDE the LLM verdict and can hard-fail CI via --fail-on:
+#   sentinel run specs/example.assertions.yaml --fail-on text,url,requests,security,errors
+title: Checkout sends the order and confirms it cleanly
+task: Add the sample item to the cart and complete checkout.
+intent: >
+  After checkout the order is confirmed on screen, the order was actually
+  POSTed to the API, and the page shows no broken/error content.
+app:
+  name: Demo Shop
+  url: https://shop.example.com
+  notes: The "Add to cart" button is on each product card; checkout is in the cart drawer.
+criteria:
+  - An order-confirmation message with an order number is shown
+
+# State isolation: empty the cart via the API before the run so the test always
+# starts from a known-clean state (the #1 cure for flaky end-to-end tests). A
+# failed setup hook blocks the run instead of testing against dirty data.
+setup:
+  - method: DELETE
+    url: "https://shop.example.com/api/test/cart"
+    headers: { Authorization: "Bearer {{env.TEST_API_TOKEN}}" }
+# Best-effort cleanup after the run.
+teardown:
+  - method: POST
+    url: "https://shop.example.com/api/test/reset"
+    headers: { Authorization: "Bearer {{env.TEST_API_TOKEN}}" }
+
+# Exact text that MUST appear on the final page.
+expectText:
+  - "Order confirmed"
+
+# The flow must land on the confirmation page and leave the cart behind — a
+# deterministic check on the final URL (substring match against the full URL).
+expectUrl:
+  - "/order/"
+forbidUrl:
+  - "/cart"
+  - "error="
+
+# Text that must NOT appear — catches unrendered template vars and stringified
+# junk that an LLM judge can gloss over.
+forbidText:
+  - "undefined"
+  - "NaN"
+  - "[object Object]"
+  - "{{"
+
+# The app must actually POST the order (a 2xx) and the payload must carry the
+# item — guards against an "optimistic UI" that shows success but sends nothing.
+expectRequests:
+  - url: "/api/orders"
+    method: POST
+    status: 200
+    bodyIncludes: "sku-"
+  # Clicking around must NOT fire a destructive delete.
+  - url: "/api/orders/*"
+    method: DELETE
+    min: 0
+
+# Persisted-state assertions: checkout should set an order cookie and leave a
+# record in localStorage; the cart must be emptied (its key cleared).
+expectState:
+  - scope: cookie
+    key: last_order
+  - scope: localStorage
+    key: cart
+    absent: true
+
+# Audit the main document's security response headers + session-cookie flags.
+security: true

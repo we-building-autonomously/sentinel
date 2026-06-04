@@ -1,0 +1,27 @@
+name: TodoMVC smoke suite
+concurrency: 2
+# Optional: run every spec on each viewport (or pass --viewports desktop,mobile).
+# matrix:
+#   viewport: [desktop, mobile]
+defaults:
+  app:
+    name: TodoMVC (React)
+    url: https://demo.playwright.dev/todomvc/
+  maxSteps: 25
+specs:
+  - title: Add a todo
+    tags: [smoke, create]
+    task: Add a todo item called "Buy milk".
+    intent: The item "Buy milk" is visible in the todo list and the count shows 1 item left.
+
+  - title: Complete a todo
+    tags: [smoke, update]
+    task: Add a todo "Walk the dog", then mark it complete by clicking its checkbox.
+    intent: The "Walk the dog" item is shown as completed (struck through) and 0 items remain active.
+
+  - title: Clear completed
+    tags: [cleanup]
+    task: Add a todo "Old task", complete it, then click "Clear completed".
+    intent: After clearing, the completed "Old task" no longer appears in the list.
+
+# Try: sentinel suite specs/example.suite.yaml --tag smoke --retries 1

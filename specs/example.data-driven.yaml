@@ -1,0 +1,28 @@
+# Data-driven spec: one definition, run once per `cases` row. Each row's fields
+# become {{tokens}} in the spec, and `name` becomes the [case] title suffix.
+#   sentinel run specs/example.data-driven.yaml
+# produces three runs: "Checkout payment outcomes [visa]", "[declined]", "[amex]".
+title: Checkout payment outcomes
+task: >
+  Add the sample item to the cart, go to checkout, pay with card number
+  {{card}}, and submit the order.
+intent: >
+  A {{card}} payment results in the "{{outcome}}" state shown to the user.
+app:
+  name: Demo Shop
+  url: https://shop.example.com
+
+# The text that must appear differs per case — it references the case var too.
+expectText:
+  - "{{outcome}}"
+
+cases:
+  - name: visa
+    card: "4111111111111111"
+    outcome: Order confirmed
+  - name: declined
+    card: "4000000000000002"
+    outcome: Payment declined
+  - name: amex
+    card: "378282246310005"
+    outcome: Order confirmed

@@ -1,0 +1,17 @@
+# Test a hard-to-trigger state by stubbing the network. Here we force the items
+# API to 500 and verify the app shows a graceful error (not a blank page / crash).
+# Mocks match a URL glob; `json` sets an application/json body, `status` the code,
+# `delayMs` simulates a slow response (loading states).
+title: Items page handles an API error gracefully
+task: Open the items page and observe what happens when the list fails to load.
+intent: >
+  When the items API returns a 500, the page shows a clear error/empty state
+  (a message or retry affordance) — it does NOT show a blank page, a spinner
+  forever, or an uncaught JS error.
+app:
+  name: My App
+  url: https://app.example.com/items
+mocks:
+  - url: "**/api/items*"
+    status: 500
+    json: { error: "internal" }

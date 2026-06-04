@@ -1,0 +1,10 @@
+{
+  "title": "TodoMVC: add and complete a todo",
+  "task": "Add a todo item called 'Buy milk', then mark it as completed.",
+  "intent": "The item 'Buy milk' appears in the list and, after being checked, is shown as completed (struck through / in the completed filter), and the active count reflects 0 items left.",
+  "a11y": true,
+  "app": {
+    "name": "TodoMVC (React)",
+    "url": "https://demo.playwright.dev/todomvc/"
+  }
+}

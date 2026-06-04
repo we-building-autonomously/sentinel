@@ -1,0 +1,19 @@
+# Real-world example: an API-key lifecycle test on a protected SPA.
+# Run: APP_PW=... node dist/cli.js run specs/example.apikey-lifecycle.yaml
+# (the password is read from the env var, never stored in the spec/report).
+# Self-cleaning: it creates one key and immediately revokes it.
+title: Generate and disable an API key
+task: >
+  Sign in, open Settings → API keys, create a new key named "sentinel-qa-test",
+  confirm it appears in the list as active, then revoke that specific key
+  (it opens a confirmation modal — confirm it). Do NOT revoke any other key.
+intent: >
+  The newly created "sentinel-qa-test" key first shows as active, and after
+  revoking it the same row shows state "revoked" — the create→disable
+  lifecycle works and only that key is affected.
+app:
+  name: Example App
+  url: https://app.example.com/signin
+  auth:
+    username: you@example.com
+    password: "{{env.APP_PW}}"

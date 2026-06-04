@@ -1,0 +1,17 @@
+# A repeatable signup test. {{randomEmail}} resolves to a fresh address every
+# run (so the test doesn't fail on "email already taken"), and the same value
+# is reused across task/intent/auth. {{env.X}} targets any environment.
+# Tokens: {{randomEmail}} {{randomString}} {{uuid}} {{timestamp}} {{env.NAME}}
+title: New user can sign up
+task: >
+  Create a new account using the email {{randomEmail}} and a password, then
+  reach the authenticated dashboard.
+intent: >
+  After signup the app shows an authenticated view for {{randomEmail}} (account
+  menu / dashboard) — not the signup form or a "duplicate email" error.
+app:
+  name: My App
+  url: "{{env.APP_URL}}"   # e.g. APP_URL=https://app.example.com/signup
+  auth:
+    username: "{{randomEmail}}"
+    password: "Pw-{{randomString}}1!"

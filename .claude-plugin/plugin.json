@@ -1,0 +1,11 @@
+{
+  "name": "sentinel-qa",
+  "displayName": "Sentinel QA",
+  "description": "Browser-native QA for your coding agent. After building a feature, drive a real browser like a user and get a strict pass/fail verdict with per-checkpoint reasoning — so 'done' means 'works', not 'compiles'.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Sentinel"
+  },
+  "license": "MIT",
+  "keywords": ["qa", "testing", "e2e", "browser", "agent", "playwright", "mcp"]
+}
