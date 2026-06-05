@@ -1,6 +1,6 @@
 name: Release
 
-# Publishes @sentinel/qa to npm when you publish a GitHub Release.
+# Publishes @trysentinel/qa to npm when you publish a GitHub Release.
 # Gated: it re-runs typecheck + unit tests + a clean build (via prepublishOnly)
 # before publishing, so a broken build can never reach npm.
 #

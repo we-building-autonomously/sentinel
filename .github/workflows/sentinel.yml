@@ -16,6 +16,10 @@ jobs:
   qa:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The live suite needs the API key. Expose it as a job-level env so steps can
+    # gate on it — the `secrets` context is NOT allowed in `if:` (only `env`/`with`).
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -48,7 +52,7 @@ jobs:
       # the secret exists); on fork PRs the secret is absent, so it's skipped and
       # build + unit tests stay the gate for outside contributors.
       - name: Run Sentinel suite
-        if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: node dist/cli.js suite "${{ github.event.inputs.suite || 'specs/example.suite.yaml' }}" --junit sentinel-junit.xml
@@ -56,13 +60,13 @@ jobs:
       # Aggregate the trend dashboard and FAIL the build if any spec regressed
       # (was passing in a prior run, now isn't). Pings Slack if the secret is set.
       - name: Regression gate
-        if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
         env:
           SENTINEL_SLACK_WEBHOOK: ${{ secrets.SENTINEL_SLACK_WEBHOOK }}
         run: node dist/cli.js history --fail-on-regression
 
       - name: Publish report + history
-        if: ${{ always() && secrets.ANTHROPIC_API_KEY != '' }}
+        if: ${{ always() && env.ANTHROPIC_API_KEY != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-report
@@ -71,7 +75,7 @@ jobs:
             sentinel-junit.xml
 
       - name: Surface results in the checks UI
-        if: ${{ always() && secrets.ANTHROPIC_API_KEY != '' }}
+        if: ${{ always() && env.ANTHROPIC_API_KEY != '' }}
         uses: mikepenz/action-junit-report@v5
         with:
           report_paths: sentinel-junit.xml
