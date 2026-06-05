@@ -563,9 +563,12 @@ export class BrowserSession {
       /* ignore */
     }
     // Capture the video handle, then close the CONTEXT (not just the browser) —
-    // that's what finalizes and flushes the recording to disk.
-    const video = this.opts.video ? this.page.video() : null;
-    await this.context.close().catch(() => {});
+    // that's what finalizes and flushes the recording to disk. Guard with `?.`
+    // so that if start() threw before the context existed (e.g. the browser
+    // binary is missing), close() — run from the caller's finally — stays silent
+    // and the ORIGINAL launch error surfaces instead of a masking TypeError.
+    const video = this.opts.video ? this.page?.video() ?? null : null;
+    await this.context?.close().catch(() => {});
     if (video) {
       try {
         this.videoFile = path.basename(await video.path());
