@@ -1,5 +1,5 @@
 {
-  "name": "@sentinel/qa",
+  "name": "@trysentinel/qa",
   "version": "0.1.0",
   "description": "Browser-native testing harness — a QA agent that drives a real browser like a user and returns a pass/fail verdict with commentary",
   "type": "module",
