@@ -1,4 +1,4 @@
-# Releasing `@sentinel/qa`
+# Releasing `@trysentinel/qa`
 
 Releases are published to npm **by CI** (`.github/workflows/release.yml`) when you publish a GitHub
 Release — gated on typecheck + unit tests + a clean build, so a broken build can never reach npm.
@@ -23,7 +23,7 @@ npm publish        # publishConfig.access:"public" + prepublishOnly gates run au
 Pick one:
 
 **A. Trusted publishing via OIDC (recommended — no token).**
-On npmjs.com → the `@sentinel/qa` package → **Settings → Publishing access → Trusted Publisher** → add:
+On npmjs.com → the `@trysentinel/qa` package → **Settings → Publishing access → Trusted Publisher** → add:
 - Repository: `we-building-autonomously/sentinel`
 - Workflow: `release.yml`
 
@@ -55,21 +55,21 @@ Settings → **Code security** → enable **Secret scanning** + **Push protectio
 1. **Bump the version** in `package.json` (e.g. `0.1.0` → `0.2.0`) via a PR — CI must pass to merge.
 2. **Create a GitHub Release** with a tag that matches: `v0.2.0`.
 3. `release.yml` runs the gate (typecheck → tests → build → *version-matches-tag* check) and publishes.
-4. Verify: `npm view @sentinel/qa version`.
+4. Verify: `npm view @trysentinel/qa version`.
 
 > The `vX.Y.Z` tag must equal `package.json` version — the workflow fails the release if they differ.
 
 ---
 
 ## What's already configured
-- `package.json`: `@sentinel/qa`, `publishConfig.access:"public"`, `prepublishOnly` (typecheck → test:ci → clean no-map build), `files` whitelist (no `src`/tests/maps).
+- `package.json`: `@trysentinel/qa`, `publishConfig.access:"public"`, `prepublishOnly` (typecheck → test:ci → clean no-map build), `files` whitelist (no `src`/tests/maps).
 - `.github/workflows/ci.yml` — the PR gate (the required status check).
 - `.github/workflows/release.yml` — gated npm publish on Release.
 - `.github/workflows/sentinel.yml` — the live browser E2E suite (main + manual only; needs `ANTHROPIC_API_KEY` secret).
 
 ## End-user install (for the README)
 ```bash
-npm install -g @sentinel/qa
+npm install -g @trysentinel/qa
 npx playwright install chromium
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
