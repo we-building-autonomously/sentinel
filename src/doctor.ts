@@ -61,7 +61,7 @@ export async function runDoctor(input: DoctorInput): Promise<Check[]> {
     status: input.apiKey ? "ok" : "warn",
     detail: input.apiKey
       ? "ANTHROPIC_API_KEY is set"
-      : "ANTHROPIC_API_KEY not set — required for run/suite (init, watch, history work without it)",
+      : "ANTHROPIC_API_KEY not set — required for run/suite (init, watch, history work without it). Get a key: https://console.anthropic.com/settings/keys",
   });
 
   checks.push({
