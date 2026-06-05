@@ -124,7 +124,14 @@ export function loadConfig(
   const apiKey = overrides.apiKey ?? process.env.ANTHROPIC_API_KEY ?? "";
   if (!apiKey) {
     throw new Error(
-      "ANTHROPIC_API_KEY is not set. Add it to your environment or a .env file (see .env.example)."
+      "ANTHROPIC_API_KEY is not set.\n" +
+      "\n" +
+      "  Get a key → https://console.anthropic.com/settings/keys\n" +
+      "\n" +
+      "  Then set it in one of these ways:\n" +
+      "    • shell:   export ANTHROPIC_API_KEY=sk-ant-…\n" +
+      "    • .env:    echo 'ANTHROPIC_API_KEY=sk-ant-…' >> .env\n" +
+      "    • CI:      add it as a repository secret named ANTHROPIC_API_KEY"
     );
   }
   return { apiKey, ...resolveDefaults(overrides, file) };
