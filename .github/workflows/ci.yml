@@ -1,6 +1,7 @@
 name: CI
 
-# Fast PR gate — typecheck, build, and unit tests (no live browser, no API key).
+# Fast PR gate — typecheck, build, and unit tests. Runs keyless browser tests
+# (real Chromium, fake LLM) but skips *.live.test.ts, which need an API key.
 # This is the status check branch protection should require before merging.
 on:
   push:
@@ -22,4 +23,14 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      # Some unit tests drive a real Chromium through CallbackLlm (no API key, but
+      # a real browser), so the binary must be present. Cache it across runs to
+      # keep the gate fast; --with-deps still installs the OS libs on a cache hit.
+      - name: Cache Playwright browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
       - run: npm run test:ci
