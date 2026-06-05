@@ -57,8 +57,8 @@ describe("renderElements dialog marker", () => {
 describe("renderElements row context", () => {
   it("disambiguates repeated controls with their row text", () => {
     const out = renderElements([
-      { index: 0, tag: "button", role: null, name: "Revoke", inViewport: true, context: "sentinel-qa-test cwz_9528… active" },
-      { index: 1, tag: "button", role: null, name: "Revoke", inViewport: true, context: "claude cwz_8b8a… active" },
+      { index: 0, tag: "button", role: null, name: "Revoke", inViewport: true, context: "sentinel-qa-test tok_9528… active" },
+      { index: 1, tag: "button", role: null, name: "Revoke", inViewport: true, context: "claude tok_8b8a… active" },
     ]);
     expect(out).toContain('[0] <button> "Revoke" (in "sentinel-qa-test');
     expect(out).toContain('[1] <button> "Revoke" (in "claude');

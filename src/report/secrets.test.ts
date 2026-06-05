@@ -3,8 +3,8 @@ import { scrubSecrets, containsSecret } from "./secrets.js";
 
 describe("scrubSecrets", () => {
   it("masks a provider-prefixed key (the provider-prefixed case)", () => {
-    const s = scrubSecrets("Your key: cwz_9528d50a09da3f75be1fb07928c1466c0ec390955272cc08 — copy it now");
-    expect(s).not.toContain("cwz_9528d50a09da3f75");
+    const s = scrubSecrets("Your key: tok_9528d50a09da3f75be1fb07928c1466c0ec390955272cc08 — copy it now");
+    expect(s).not.toContain("tok_9528d50a09da3f75");
     expect(s).toContain("«redacted-secret»");
   });
 

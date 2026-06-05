@@ -145,7 +145,7 @@ Beyond the LLM verdict, a spec can declare **objective, deterministic** checks:
 `expectRequests` can also assert the payload with `"bodyIncludes": "sku-"` (a substring the POST body must contain). More deterministic checks:
 
 - `"expectDownloads": [{ "filename": "report-*.csv", "contentIncludes": "sku-1" }]` — an export downloaded whose name/content matches (verifies the file, not just that one arrived).
-- `"expectClipboard": "cwz_…"` — a "Copy" button copied this substring (captured via `navigator.clipboard.writeText`).
+- `"expectClipboard": "tok_…"` — a "Copy" button copied this substring (captured via `navigator.clipboard.writeText`).
 - `"expectToast": "Saved"` — a toast/status (`aria-live`) message appeared — captured even if it vanished in a second, so it's not a race.
 - `"expectState": [{ "scope": "cookie", "key": "cookie_consent", "value": "accepted" }, { "scope": "localStorage", "key": "cart", "absent": true }]` — assert what the app **persisted** in the browser after the run (cookies / `localStorage` / `sessionStorage`): a token was stored on login, consent set a cookie, the cart key was cleared on logout. `value` is a substring; `absent: true` requires the key be gone. This is state the LLM judge literally can't see.
 
