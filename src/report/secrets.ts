@@ -22,7 +22,7 @@ const PATTERNS: RegExp[] = [
   /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g,
   // Generic provider key: short lowercase prefix (which may itself contain
   // underscores like "sk_live") + "_" + a long token. Matches sk_live_…, pk_…,
-  // cwz_… (the Lettuce "cwz_<48 hex>" key), key_…, etc.
+  // key_…, and other "<prefix>_<long-token>" API key shapes.
   /\b[a-z][a-z_]{1,10}_[A-Za-z0-9]{20,}\b/g,
   // Bare long hex strings (>=32) — typical of raw API keys / hashes.
   /\b[0-9a-fA-F]{32,}\b/g,

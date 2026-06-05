@@ -201,9 +201,9 @@ describe("qaGateFailures", () => {
   });
 
   it("clipboard gate trips on an unmet clipboard assertion", () => {
-    const miss = rep("a", { clipboardCheck: { expected: "cwz_key", met: false } });
-    const hit = rep("b", { clipboardCheck: { expected: "cwz_key", met: true } });
-    expect(qaGateFailures([miss], ["clipboard"])[0]).toMatch(/clipboard did not contain "cwz_key"/);
+    const miss = rep("a", { clipboardCheck: { expected: "tok_key", met: false } });
+    const hit = rep("b", { clipboardCheck: { expected: "tok_key", met: true } });
+    expect(qaGateFailures([miss], ["clipboard"])[0]).toMatch(/clipboard did not contain "tok_key"/);
     expect(qaGateFailures([hit], ["clipboard"])).toEqual([]);
     expect(parseGates("clipboard")).toEqual(["clipboard"]);
   });

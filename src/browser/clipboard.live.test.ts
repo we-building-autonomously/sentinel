@@ -11,7 +11,7 @@ let dir = "";
 
 // A "Copy API key" button that writes to the clipboard via navigator.clipboard.
 const PAGE = `<!doctype html><html><head><title>Keys</title></head><body>
-  <button id="copy" onclick="navigator.clipboard.writeText('cwz_live_abc123')">Copy API key</button>
+  <button id="copy" onclick="navigator.clipboard.writeText('tok_live_abc123')">Copy API key</button>
 </body></html>`;
 
 beforeAll(async () => {
@@ -36,6 +36,6 @@ describe("clipboard capture", () => {
     const writes = await s.clipboardWrites();
     await s.close();
 
-    expect(writes.some((w) => w.includes("cwz_live_abc123"))).toBe(true);
+    expect(writes.some((w) => w.includes("tok_live_abc123"))).toBe(true);
   }, 30_000);
 });

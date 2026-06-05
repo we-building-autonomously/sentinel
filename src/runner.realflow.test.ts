@@ -9,13 +9,13 @@ import type { LlmClient } from "./llm/anthropic.js";
 
 /**
  * The milestone test: drive the REAL runSpec pipeline (plan → agent loop →
- * judge → report) through a realistic SPA that mimics the Lettuce API-key flow,
+ * judge → report) through a realistic SPA that mimics a SaaS API-key flow,
  * using CallbackLlm (observation-aware) so no API key is needed. Exercises all
  * the perception/security hardening (modal awareness, loading wait, row
  * context, secret scrub + screenshot suppression) composed in one run.
  */
 
-const SECRET = "cwz_9528d50a09da3f75be1fb07928c1466c0ec390955272cc08";
+const SECRET = "tok_9528d50a09da3f75be1fb07928c1466c0ec390955272cc08";
 
 // A single-page app: a brief Loading… state, login, an API-keys table, a create
 // modal that reveals a one-time secret, and a revoke confirmation modal.

@@ -57,7 +57,7 @@ describe("redactReport", () => {
 
   it("scrubs secret-shaped tokens from diagnostics/download/request URLs and the triage reason", () => {
     const r = fixture("fail");
-    const TOKEN = "cwz_9528d50a09da3f75be1fb07928c1466c0ec3909"; // matches the generic token pattern
+    const TOKEN = "tok_9528d50a09da3f75be1fb07928c1466c0ec3909"; // matches the generic token pattern
     r.diagnostics = [
       {
         kind: "network",
