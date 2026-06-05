@@ -1,6 +1,6 @@
 # Sentinel
 
-[![npm](https://img.shields.io/npm/v/@sentinel/qa)](https://www.npmjs.com/package/@sentinel/qa)
+[![npm](https://img.shields.io/npm/v/@trysentinel/qa)](https://www.npmjs.com/package/@trysentinel/qa)
 [![CI](https://github.com/we-building-autonomously/sentinel/actions/workflows/sentinel.yml/badge.svg)](https://github.com/we-building-autonomously/sentinel/actions/workflows/sentinel.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -24,12 +24,12 @@ Sentinel re-indexes the page every step: an injected script tags every *visible,
 ## Install
 
 ```bash
-npm install -g @sentinel/qa
+npm install -g @trysentinel/qa
 npx playwright install chromium      # one-time: download the browser it drives
 export ANTHROPIC_API_KEY=sk-ant-...  # the model that drives the browser
 ```
 
-That puts the `sentinel` command on your PATH. Prefer not to install globally? `npx @sentinel/qa <command>` works too.
+That puts the `sentinel` command on your PATH. Prefer not to install globally? `npx @trysentinel/qa <command>` works too.
 
 <details>
 <summary>From source (for contributors)</summary>
