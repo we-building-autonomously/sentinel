@@ -255,6 +255,56 @@ docker build -t sentinel .
 docker run --rm -e ANTHROPIC_API_KEY -v "$PWD/specs:/app/specs" sentinel suite specs/example.suite.yaml
 ```
 
+For GitLab CI, keep `ANTHROPIC_API_KEY` in CI/CD variables and publish the JUnit file as a test report:
+
+```yaml
+stages:
+  - qa
+
+sentinel:
+  image: mcr.microsoft.com/playwright:v1.50.0-noble
+  stage: qa
+  script:
+    - npm ci
+    - npm run build
+    - npx playwright install chromium
+    - mkdir -p test-results
+    - node dist/cli.js suite specs/example.suite.yaml --junit test-results/sentinel.xml
+  artifacts:
+    when: always
+    reports:
+      junit: test-results/sentinel.xml
+    paths:
+      - runs/
+```
+
+For CircleCI, store `ANTHROPIC_API_KEY` as a project environment variable and upload the same JUnit output:
+
+```yaml
+version: 2.1
+
+jobs:
+  sentinel:
+    docker:
+      - image: mcr.microsoft.com/playwright:v1.50.0-noble
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install chromium
+      - run: mkdir -p test-results
+      - run: node dist/cli.js suite specs/example.suite.yaml --junit test-results/sentinel.xml
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: runs
+
+workflows:
+  qa:
+    jobs:
+      - sentinel
+```
+
 ## Watch mode
 
 Iterate on a spec with instant feedback — re-runs whenever the file changes:
