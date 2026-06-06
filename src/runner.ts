@@ -189,6 +189,7 @@ export async function runSpec(specInput: unknown, options: RunOptions = {}): Pro
     locale: spec.emulate?.locale,
     timezoneId: spec.emulate?.timezoneId,
     clockNow: resolveClock(spec.clock?.now),
+    cdpEndpoint: cfg.cdpEndpoint,
   });
 
   // State isolation: fire setup hooks BEFORE touching the browser. A failed

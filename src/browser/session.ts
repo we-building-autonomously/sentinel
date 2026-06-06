@@ -55,6 +55,11 @@ export interface SessionOptions {
   totpSecret?: string;
   /** Freeze the page clock to this epoch-ms instant (deterministic date/time UI). */
   clockNow?: number;
+  /**
+   * CDP/websocket endpoint of a remote browser to connect to instead of
+   * launching a local Chromium (hosted execution via Browserbase/Browserless).
+   */
+  cdpEndpoint?: string;
 }
 
 /**
@@ -94,10 +99,15 @@ export class BrowserSession {
   constructor(private opts: SessionOptions) {}
 
   async start(): Promise<void> {
-    this.browser = await chromium.launch({
-      headless: !this.opts.headed,
-      args: ["--disable-blink-features=AutomationControlled"],
-    });
+    // Connect to a remote browser (hosted execution) when an endpoint is given;
+    // otherwise launch a local Chromium. newContext + our options apply the same
+    // either way, so the rest of the run is identical.
+    this.browser = this.opts.cdpEndpoint
+      ? await chromium.connectOverCDP(this.opts.cdpEndpoint)
+      : await chromium.launch({
+          headless: !this.opts.headed,
+          args: ["--disable-blink-features=AutomationControlled"],
+        });
     const seed =
       this.opts.storageState && fs.existsSync(this.opts.storageState)
         ? this.opts.storageState
