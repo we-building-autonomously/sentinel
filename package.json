@@ -1,6 +1,6 @@
 {
   "name": "@trysentinel/qa",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Browser-native testing harness — a QA agent that drives a real browser like a user and returns a pass/fail verdict with commentary",
   "type": "module",
   "license": "MIT",
