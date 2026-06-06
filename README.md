@@ -357,23 +357,44 @@ Coding agents write the code; Sentinel is the half that checks it actually works
 sentinel mcp
 ```
 
-It registers one tool, `sentinel_qa`, which takes `{ url, task, intent?, user?, pass?, expectText?, forbidText?, a11y? }`, drives a real browser, and returns a compact verdict: `decision` (pass/fail/inconclusive), `confidence`, per-checkpoint `met/unmet/unknown` with evidence, triage category, captured runtime errors, cost, and the report dir. Register it like any stdio MCP server:
+It registers one tool, `sentinel_qa`, which takes `{ url, task, intent?, user?, pass?, expectText?, forbidText?, a11y? }`, drives a real browser, and returns a compact verdict: `decision` (pass/fail/inconclusive), `confidence`, per-checkpoint `met/unmet/unknown` with evidence, triage category, captured runtime errors, cost, and the report dir.
+
+**Register it** (after `npm install -g @trysentinel/qa`). Claude Code, one line:
+
+```bash
+claude mcp add sentinel -- sentinel mcp
+```
+
+Any other MCP client (Cursor, Windsurf, a custom harness) — add to its MCP config:
 
 ```json
 {
   "mcpServers": {
-    "sentinel": { "command": "node", "args": ["/abs/path/sentinel/dist/cli.js", "mcp"] }
+    "sentinel": { "command": "sentinel", "args": ["mcp"] }
   }
 }
 ```
 
-**Claude Code plugin** — this repo is also a Claude Code plugin. It bundles the MCP server, a `/qa` slash command, and a `qa-after-build` skill that fires after you build a feature. Load it for a session:
+**Give the agent the rule.** Paste this into its system prompt / `CLAUDE.md` / `.cursorrules` so it QAs before claiming a feature is done:
+
+```text
+After you build or change anything a user can see in the browser, do NOT call it
+done until you've verified it like a user would: call the sentinel_qa tool with
+the running app's URL and the task a real user performs (e.g. "sign up and reach
+the dashboard"). If the verdict is FAIL with triage "product-defect", fix the
+failing checkpoint and re-run until it passes. "Compiles" and "works" are
+different claims — sentinel checks the second.
+```
+
+**Claude Code plugin** — this repo is also a Claude Code plugin. It bundles the MCP server, a `/qa` slash command, and a `qa-after-build` skill that fires automatically after you build a feature:
 
 ```bash
 claude --plugin-dir /abs/path/sentinel
 ```
 
-Then `/sentinel-qa:qa http://localhost:3000 sign up and reach the dashboard` — or just let the skill kick in when you finish a user-facing change. (Run `npm run build` first so `dist/cli.js` exists.)
+Then `/sentinel-qa:qa http://localhost:3000 sign up and reach the dashboard` — or just let the skill kick in when you finish a user-facing change.
+
+**Report to the cloud (optional).** Set `SENTINEL_CLOUD_URL` + `SENTINEL_API_KEY` and every agent-triggered verdict lands in your [Sentinel Cloud](https://github.com/we-building-autonomously/sentinel) dashboard, metered as credits (inconclusive runs are free).
 
 ## Stack
 
