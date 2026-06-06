@@ -127,3 +127,29 @@ describe("inspectConfigFile", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });
+
+describe("cdpEndpoint (hosted execution)", () => {
+  const E = "SENTINEL_CDP_ENDPOINT";
+  let saved: string | undefined;
+  beforeEach(() => { saved = process.env[E]; delete process.env[E]; });
+  afterEach(() => { if (saved === undefined) delete process.env[E]; else process.env[E] = saved; });
+
+  it("is undefined by default (local launch)", () => {
+    expect(loadConfig({}).cdpEndpoint).toBeUndefined();
+  });
+
+  it("reads SENTINEL_CDP_ENDPOINT from the environment", () => {
+    process.env[E] = "wss://connect.example.com?token=abc";
+    expect(loadConfig({}).cdpEndpoint).toBe("wss://connect.example.com?token=abc");
+  });
+
+  it("an explicit override beats the env", () => {
+    process.env[E] = "wss://from-env";
+    expect(loadConfig({ cdpEndpoint: "wss://from-override" }).cdpEndpoint).toBe("wss://from-override");
+  });
+
+  it("is never sourced from the committed config file (may carry a token)", () => {
+    // even if a file sets it, loadConfig ignores file for this field
+    expect(loadConfig({}, { cdpEndpoint: "wss://from-file" }).cdpEndpoint).toBeUndefined();
+  });
+});

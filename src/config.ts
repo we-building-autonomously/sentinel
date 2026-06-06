@@ -4,6 +4,13 @@ import path from "node:path";
 
 export interface SentinelConfig {
   apiKey: string;
+  /**
+   * CDP/websocket endpoint of a REMOTE browser to drive instead of launching a
+   * local Chromium (e.g. Browserbase/Browserless). Enables hosted execution —
+   * the cloud runs the engine against a remote browser. Env-only (it embeds a
+   * provider token), and never printed by `doctor`.
+   */
+  cdpEndpoint?: string;
   model: string;
   judgeModel: string;
   maxSteps: number;
@@ -134,7 +141,11 @@ export function loadConfig(
       "    • CI:      add it as a repository secret named ANTHROPIC_API_KEY"
     );
   }
-  return { apiKey, ...resolveDefaults(overrides, file) };
+  // Endpoint of a remote browser to drive (hosted execution). Like apiKey, it's
+  // env/override-only — never read from the committed config file, since the
+  // provider URL typically carries a token.
+  const cdpEndpoint = overrides.cdpEndpoint ?? process.env.SENTINEL_CDP_ENDPOINT ?? undefined;
+  return { apiKey, ...(cdpEndpoint ? { cdpEndpoint } : {}), ...resolveDefaults(overrides, file) };
 }
 
 /**
