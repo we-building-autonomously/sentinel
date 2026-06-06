@@ -26,7 +26,14 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
+      # Skip the package's Chromium postinstall; the suite needs OS deps too, so
+      # install the browser explicitly below.
       - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      # test:ci drives a real Chromium — install it (binary + OS libs) first.
+      - run: npx playwright install --with-deps chromium
 
       # Fail fast before publishing (prepublishOnly also runs these).
       - run: npm run typecheck

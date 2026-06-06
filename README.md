@@ -24,12 +24,13 @@ Sentinel re-indexes the page every step: an injected script tags every *visible,
 ## Install
 
 ```bash
-npm install -g @trysentinel/qa
-npx playwright install chromium      # one-time: download the browser it drives
-export ANTHROPIC_API_KEY=sk-ant-...  # the model that drives the browser
+npm install -g @trysentinel/qa       # installs the CLI + fetches the Chromium it drives
+export ANTHROPIC_API_KEY=sk-ant-...   # the model that drives the browser
 ```
 
 That puts the `sentinel` command on your PATH. Prefer not to install globally? `npx @trysentinel/qa <command>` works too.
+
+The install downloads Chromium for you (~150&nbsp;MB, one-time). If you installed with `--ignore-scripts` or the download was blocked, fetch it once with `npx playwright install chromium` — `sentinel doctor` will flag it if it's missing.
 
 <details>
 <summary>From source (for contributors)</summary>
@@ -37,8 +38,7 @@ That puts the `sentinel` command on your PATH. Prefer not to install globally? `
 ```bash
 git clone https://github.com/we-building-autonomously/sentinel.git
 cd sentinel
-npm install
-npx playwright install chromium
+npm install                          # postinstall fetches Chromium
 npm run build && npm link
 ```
 </details>
