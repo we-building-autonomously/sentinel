@@ -1,6 +1,7 @@
 name: Release
 
-# Publishes @trysentinel/qa to npm when you publish a GitHub Release.
+# Publishes the package to npm (both @trysentinel/qa and @run-agents/qa) when
+# you publish a GitHub Release.
 # Gated: it re-runs typecheck + unit tests + a clean build (via prepublishOnly)
 # before publishing, so a broken build can never reach npm.
 #
@@ -50,7 +51,10 @@ jobs:
             exit 1
           fi
 
-      - name: Publish to npm
-        run: npm publish --provenance --access public
+      # Publish the same build to every scope (@trysentinel/qa, @run-agents/qa).
+      # The gate already ran above; the script builds clean + publishes both with
+      # provenance, and is idempotent (skips a scope already at this version).
+      - name: Publish to all scopes
+        run: node scripts/publish-all.mjs
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # ignored when OIDC trusted publishing is configured
