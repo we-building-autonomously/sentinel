@@ -20,7 +20,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      # Skip the package's Chromium postinstall here — CI installs the browser
+      # explicitly below (cached + with OS deps), so a download during `npm ci`
+      # would just bypass the cache.
       - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - run: npm run typecheck
       - run: npm run build
       # Some unit tests drive a real Chromium through CallbackLlm (no API key, but
