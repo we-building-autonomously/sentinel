@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { runSpec } from "./runner.js";
-import { CallbackLlm, findElementIndex } from "./testing/callback-llm.js";
+import { CallbackLlm, findElementIndex, promptText } from "./testing/callback-llm.js";
 import type { LlmClient } from "./llm/anthropic.js";
 
 /**
@@ -77,7 +77,7 @@ function makeClients(): { llm: LlmClient; judge: LlmClient } {
   );
   const judge = new CallbackLlm(() => ({ tool: "noop", input: {} }), {
     submit_verdict: (o: { prompt: unknown }) => {
-      const ok = /Selected: Report Q3/.test(String(o.prompt));
+      const ok = /Selected: Report Q3/.test(promptText(o.prompt));
       return {
         decision: ok ? "pass" : "fail",
         confidence: 0.9,

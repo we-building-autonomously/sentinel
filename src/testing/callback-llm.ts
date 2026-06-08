@@ -25,6 +25,22 @@ export function latestObservation(messages: MessageParam[]): string {
 }
 
 /**
+ * The text of a judge/planner prompt, whether it's a plain string or a
+ * multimodal `ContentBlockParam[]` (the judge sends an array when it attaches
+ * per-step / final screenshots). Joins every text block so test callbacks can
+ * keep matching on prompt content regardless of the image attachments.
+ */
+export function promptText(prompt: unknown): string {
+  if (typeof prompt === "string") return prompt;
+  if (Array.isArray(prompt)) {
+    return prompt
+      .map((b) => (b && typeof b === "object" && (b as { type?: string }).type === "text" ? (b as { text: string }).text : ""))
+      .join("\n");
+  }
+  return String(prompt);
+}
+
+/**
  * An {@link LlmClient}-shaped driver whose decisions come from a callback that
  * INSPECTS the live observation (the rendered element list), instead of a fixed
  * script. This makes the loop drivable by observation-aware logic — robust test

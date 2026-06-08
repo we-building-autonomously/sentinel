@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectAuthFailure, authFailureNote } from "./auth.js";
+import { detectAuthFailure, authFailureNote, expectsLoginRejection } from "./auth.js";
 
 describe("detectAuthFailure", () => {
   it("returns false for ordinary page text", () => {
@@ -34,5 +34,20 @@ describe("detectAuthFailure", () => {
     expect(note).toMatch(/done\('blocked'\)/);
     expect(note).toMatch(/expected outcome — continue/);
     expect(note.endsWith("\n")).toBe(true);
+  });
+});
+
+describe("expectsLoginRejection", () => {
+  it("is true when the test's intent is to verify a bad login is refused", () => {
+    expect(expectsLoginRejection({ intent: "An invalid password is rejected with an error" })).toBe(true);
+    expect(expectsLoginRejection({ task: "Try to log in with the wrong password" })).toBe(true);
+    expect(expectsLoginRejection({ intent: "Login fails for a disabled account" })).toBe(true);
+    expect(expectsLoginRejection({ intent: "The app rejects sign-in with bad credentials" })).toBe(true);
+  });
+
+  it("is false for an ordinary login (where an auth failure means a bad spec credential)", () => {
+    expect(expectsLoginRejection({ task: "Log in", intent: "Reach the dashboard" })).toBe(false);
+    expect(expectsLoginRejection({ task: "Sign in and open settings", intent: "Settings page loads" })).toBe(false);
+    expect(expectsLoginRejection({})).toBe(false);
   });
 });

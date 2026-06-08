@@ -221,6 +221,20 @@ export interface Checkpoint {
   /** Filled in by the judge at the end. */
   status?: "met" | "unmet" | "unknown";
   evidence?: string;
+  /**
+   * Index of the step whose screenshot/trace entry most directly proves this
+   * checkpoint — the moment it should hold. Lets the report show the proving
+   * frame and stops end-state from contaminating an early checkpoint. Undefined
+   * (or -1) when no single step proves it (e.g. the initial page load).
+   */
+  proofStep?: number;
+  /**
+   * How directly the evidence supports the status: "strong" = seen on a
+   * screenshot or a deterministic assertion; "weak" = inferred indirectly;
+   * "none" = not actually observable. A "met" with "none" can't be trusted and
+   * is reconciled down. Spot-check anything below "strong".
+   */
+  evidenceStrength?: "strong" | "weak" | "none";
 }
 
 export interface Plan {

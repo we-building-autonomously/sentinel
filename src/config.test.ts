@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { loadConfig, readConfigFile, configSummary, inspectConfigFile } from "./config.js";
+import { loadConfig, readConfigFile, configSummary, inspectConfigFile, modelFallbacks } from "./config.js";
 
 const KEY = "ANTHROPIC_API_KEY";
 let savedKey: string | undefined;
@@ -151,5 +151,31 @@ describe("cdpEndpoint (hosted execution)", () => {
   it("is never sourced from the committed config file (may carry a token)", () => {
     // even if a file sets it, loadConfig ignores file for this field
     expect(loadConfig({}, { cdpEndpoint: "wss://from-file" }).cdpEndpoint).toBeUndefined();
+  });
+});
+
+describe("modelFallbacks", () => {
+  const prev = process.env.SENTINEL_FALLBACK_MODELS;
+  afterEach(() => {
+    if (prev === undefined) delete process.env.SENTINEL_FALLBACK_MODELS;
+    else process.env.SENTINEL_FALLBACK_MODELS = prev;
+  });
+
+  it("steps opus → sonnet → haiku", () => {
+    expect(modelFallbacks("claude-opus-4-8")).toEqual(["claude-sonnet-4-6", "claude-haiku-4-5-20251001"]);
+  });
+  it("steps sonnet → haiku", () => {
+    expect(modelFallbacks("claude-sonnet-4-6")).toEqual(["claude-haiku-4-5-20251001"]);
+  });
+  it("gives haiku no fallback (already the cheapest)", () => {
+    expect(modelFallbacks("claude-haiku-4-5-20251001")).toEqual([]);
+  });
+  it("honors SENTINEL_FALLBACK_MODELS and drops the primary from its own ladder", () => {
+    process.env.SENTINEL_FALLBACK_MODELS = "claude-opus-4-8, claude-haiku-4-5-20251001";
+    expect(modelFallbacks("claude-opus-4-8")).toEqual(["claude-haiku-4-5-20251001"]);
+  });
+  it("treats an empty SENTINEL_FALLBACK_MODELS as 'disable fallback'", () => {
+    process.env.SENTINEL_FALLBACK_MODELS = "";
+    expect(modelFallbacks("claude-opus-4-8")).toEqual([]);
   });
 });

@@ -100,4 +100,28 @@ describe("reconcileVerdict", () => {
     const f = verdict({ decision: "inconclusive", checkpoints: [] });
     expect(reconcileVerdict(f, { unmetAssertions: ["x unmet"] })).toEqual(f);
   });
+
+  it("downgrades a pass whose checkpoint is 'met' with NO observable evidence to inconclusive", () => {
+    const v = verdict({
+      decision: "pass",
+      checkpoints: [{ id: 1, description: "cp1", status: "met", evidence: "claimed", evidenceStrength: "none" }],
+    });
+    const out = reconcileVerdict(v);
+    expect(out.decision).toBe("inconclusive");
+    expect(out.confidence).toBeLessThanOrEqual(0.5);
+    expect(out.issues[0]).toMatch(/no observable evidence/);
+  });
+
+  it("leaves a pass backed by strong (or weak) evidence alone", () => {
+    const strong = verdict({
+      decision: "pass",
+      checkpoints: [{ id: 1, description: "cp1", status: "met", evidence: "seen", evidenceStrength: "strong" }],
+    });
+    expect(reconcileVerdict(strong)).toEqual(strong);
+    const weak = verdict({
+      decision: "pass",
+      checkpoints: [{ id: 1, description: "cp1", status: "met", evidence: "inferred", evidenceStrength: "weak" }],
+    });
+    expect(reconcileVerdict(weak)).toEqual(weak);
+  });
 });

@@ -262,6 +262,60 @@ describe("judge() applies verdict reconciliation", () => {
     expect(seen).toMatch(/Saved successfully/);
   });
 
+  it("attaches per-step screenshots as chronological labeled image blocks", async () => {
+    let prompt: unknown;
+    const capturing = new CallbackLlm(() => ({ tool: "noop", input: {} }), {
+      submit_verdict: (o: { prompt: unknown }) => {
+        prompt = o.prompt;
+        return { decision: "pass", confidence: 0.9, summary: "ok", checkpoints: [], issues: [] };
+      },
+    }) as unknown as LlmClient;
+    await judge({
+      llm: capturing,
+      spec,
+      plan,
+      steps: [],
+      done: { outcome: "success", notes: "n" },
+      exhausted: false,
+      finalPageText: "",
+      stepShots: [
+        { step: 0, label: "after step #1: click — opened banner", data: "QUJD", mediaType: "image/png" },
+        { step: 1, label: "after step #2: click — dismissed banner", data: "WFla", mediaType: "image/png" },
+      ],
+    });
+    const blocks = prompt as Array<{ type: string; text?: string; source?: { data: string } }>;
+    // Images in chronological order, each preceded by its step label.
+    expect(blocks.filter((b) => b.type === "image").map((b) => b.source!.data)).toEqual(["QUJD", "WFla"]);
+    expect(blocks.some((b) => b.type === "text" && /after step #1/.test(b.text ?? ""))).toBe(true);
+    // The prompt tells the judge to judge each checkpoint at the moment it held.
+    expect(blocks.some((b) => b.type === "text" && /PER-STEP SCREENSHOTS/.test(b.text ?? ""))).toBe(true);
+  });
+
+  it("merges proofStep (1-based→0-based) and evidenceStrength onto checkpoints; drops -1", async () => {
+    const v = await judge({
+      llm: fakeJudge({
+        decision: "pass",
+        confidence: 0.9,
+        summary: "ok",
+        checkpoints: [
+          { id: 1, status: "met", evidence: "seen on shot", proofStep: 2, evidenceStrength: "strong" },
+          { id: 2, status: "met", evidence: "initial load", proofStep: -1, evidenceStrength: "weak" },
+        ],
+        issues: [],
+      }),
+      spec,
+      plan,
+      steps: [],
+      done: { outcome: "success", notes: "n" },
+      exhausted: false,
+      finalPageText: "",
+    });
+    expect(v.checkpoints.find((c) => c.id === 1)).toMatchObject({ proofStep: 1, evidenceStrength: "strong" });
+    const cp2 = v.checkpoints.find((c) => c.id === 2);
+    expect(cp2?.proofStep).toBeUndefined(); // -1 → "no single step proves it"
+    expect(cp2?.evidenceStrength).toBe("weak");
+  });
+
   it("passes through a coherent pass unchanged", async () => {
     const v = await judge({
       llm: fakeJudge({

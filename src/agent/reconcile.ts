@@ -34,9 +34,15 @@ export function reconcileVerdict(verdict: Verdict, ctx: ReconcileContext = {}): 
 
   const unmetAssertions = ctx.unmetAssertions ?? [];
   const unmet = verdict.checkpoints.filter((c) => c.status === "unmet");
-  const unknown = verdict.checkpoints.filter((c) => c.status === "unknown");
+  // A checkpoint reported "met" but with no observable evidence ("none") was
+  // not actually confirmed — treat it as unconfirmed, not a basis for a pass.
+  // This is the calibration backstop: a confident-but-baseless green is exactly
+  // the verdict a QA harness must never emit.
+  const unconfirmed = verdict.checkpoints.filter(
+    (c) => c.status === "unknown" || (c.status === "met" && c.evidenceStrength === "none")
+  );
 
-  if (!unmet.length && !unknown.length && !unmetAssertions.length) return verdict; // coherent pass
+  if (!unmet.length && !unconfirmed.length && !unmetAssertions.length) return verdict; // coherent pass
 
   const ids = (cs: typeof verdict.checkpoints) => cs.map((c) => c.id).join(", ");
   let decision: Verdict["decision"];
@@ -54,7 +60,7 @@ export function reconcileVerdict(verdict: Verdict, ctx: ReconcileContext = {}): 
     decision = "inconclusive";
     note =
       `Verdict reconciled pass→inconclusive: the judge reported "pass" but ` +
-      `checkpoint(s) ${ids(unknown)} could not be confirmed (status unknown). ` +
+      `checkpoint(s) ${ids(unconfirmed)} could not be confirmed (status unknown or marked "met" with no observable evidence). ` +
       `Success was not observably established.`;
   }
 

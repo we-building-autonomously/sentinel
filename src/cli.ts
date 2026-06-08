@@ -34,6 +34,7 @@ import { findLatestReport, openerFor } from "./open.js";
 import { validateSpecData } from "./validate.js";
 import { spawn } from "node:child_process";
 import { chromium } from "playwright";
+import Anthropic from "@anthropic-ai/sdk";
 import type { RunReport } from "./types.js";
 
 const c = {
@@ -542,6 +543,23 @@ async function doctorCommand(): Promise<void> {
     }
   };
 
+  // Probe each configured model with a tiny real request — the only way to learn
+  // the key is 429-capped or unauthorized for THAT model before a run does.
+  const cfg = configSummary();
+  const models = [...new Set([cfg.model, cfg.judgeModel])];
+  const probeModel = apiKey
+    ? async (model: string) => {
+        try {
+          const client = new Anthropic({ apiKey });
+          await client.messages.create({ model, max_tokens: 1, messages: [{ role: "user", content: "ping" }] });
+          return { ok: true };
+        } catch (err) {
+          const status = (err as { status?: number })?.status;
+          return { ok: false, status, error: err instanceof Error ? err.message : String(err) };
+        }
+      }
+    : undefined;
+
   console.log(c.cyan("\nSentinel doctor\n"));
   const checks = await runDoctor({
     nodeVersion: process.version,
@@ -550,6 +568,8 @@ async function doctorCommand(): Promise<void> {
     runsWritable,
     ping,
     launch,
+    models,
+    probeModel,
     configFile: inspectConfigFile(),
   });
   for (const ch of checks) {
@@ -558,7 +578,6 @@ async function doctorCommand(): Promise<void> {
   }
   // Show the resolved (non-secret) config so the user can confirm env /
   // sentinel.config.json took effect — which model, which output dirs.
-  const cfg = configSummary();
   console.log(c.dim("\nResolved config:"));
   for (const [k, v] of [
     ["model", cfg.model],

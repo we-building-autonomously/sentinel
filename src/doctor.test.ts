@@ -111,6 +111,56 @@ describe("runDoctor", () => {
     const checks = await runDoctor({ ...base, configFile: { present: true, valid: true, unknownKeys: [], hasApiKey: false } });
     expect(get(checks, "Config file").status).toBe("ok");
   });
+
+  it("has no model-probe checks without a probe (or without models)", async () => {
+    const noProbe = await runDoctor({ ...base, models: ["m1"] });
+    expect(noProbe.find((c) => c.name.startsWith("Model:"))).toBeUndefined();
+    const noModels = await runDoctor({ ...base, probeModel: async () => ({ ok: true }) });
+    expect(noModels.find((c) => c.name.startsWith("Model:"))).toBeUndefined();
+  });
+
+  it("probes each configured model and marks a working one OK", async () => {
+    const checks = await runDoctor({
+      ...base,
+      models: ["claude-opus-4-8", "claude-haiku-4-5-20251001"],
+      probeModel: async () => ({ ok: true }),
+    });
+    expect(get(checks, "Model: claude-opus-4-8").status).toBe("ok");
+    expect(get(checks, "Model: claude-haiku-4-5-20251001").status).toBe("ok");
+  });
+
+  it("WARNS (not fails) on a 429-capped model and explains the fallback", async () => {
+    const checks = await runDoctor({
+      ...base,
+      models: ["claude-opus-4-8"],
+      probeModel: async () => ({ ok: false, status: 429 }),
+    });
+    const ch = get(checks, "Model: claude-opus-4-8");
+    expect(ch.status).toBe("warn");
+    expect(ch.detail).toMatch(/429/);
+    expect(ch.detail).toMatch(/fall back|SENTINEL_MODEL/);
+    expect(doctorExitCode(checks)).toBe(0); // a quota cap isn't a hard environment failure
+  });
+
+  it("FAILS an unauthorized model (401/403)", async () => {
+    const checks = await runDoctor({
+      ...base,
+      models: ["claude-opus-4-8"],
+      probeModel: async () => ({ ok: false, status: 403 }),
+    });
+    expect(get(checks, "Model: claude-opus-4-8").status).toBe("fail");
+    expect(doctorExitCode(checks)).toBe(1);
+  });
+
+  it("treats a throwing probe as a (soft) probe failure, not a crash", async () => {
+    const checks = await runDoctor({
+      ...base,
+      models: ["m1"],
+      probeModel: async () => { throw new Error("network"); },
+    });
+    expect(get(checks, "Model: m1").status).toBe("warn");
+    expect(get(checks, "Model: m1").detail).toMatch(/network/);
+  });
 });
 
 describe("doctorExitCode / summarizeDoctor", () => {

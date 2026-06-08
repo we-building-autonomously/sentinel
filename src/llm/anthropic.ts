@@ -63,6 +63,10 @@ export class LlmClient {
   private rng: () => number;
   /** Models that rejected `temperature` (deprecated on newer models) — omit it for them. */
   private noTemperature = new Set<string>();
+  /** Cheaper models to try, in order, when the primary is rate-limited after retries. */
+  private fallbacks: string[];
+  /** Called when a request is served by a fallback model instead of the primary. */
+  private onFallback?: (info: { from: string; to: string; reason: string }) => void;
 
   constructor(
     apiKey: string,
@@ -71,12 +75,19 @@ export class LlmClient {
     private maxRetries = 5,
     /** Inject a stand-in Anthropic client for deterministic tests. */
     clientImpl?: MessagesApi,
-    /** Test seams: a no-op sleep and a fixed rng make backoff deterministic & instant. */
-    opts?: { sleep?: (ms: number) => Promise<void>; rng?: () => number }
+    /** Test seams + behavior: deterministic backoff, and the 429 fallback ladder. */
+    opts?: {
+      sleep?: (ms: number) => Promise<void>;
+      rng?: () => number;
+      fallbacks?: string[];
+      onFallback?: (info: { from: string; to: string; reason: string }) => void;
+    }
   ) {
     this.client = clientImpl ?? new Anthropic({ apiKey });
     this.sleep = opts?.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.rng = opts?.rng ?? Math.random;
+    this.fallbacks = opts?.fallbacks ?? [];
+    this.onFallback = opts?.onFallback;
   }
 
   /** Delay before the next retry: Retry-After if the server gave one, else exp backoff + jitter. */
@@ -117,22 +128,20 @@ export class LlmClient {
         : t
     );
 
-    const res = await this.withRetry(() =>
-      this.createMessage({
-        model: opts.model ?? this.model,
-        max_tokens: opts.maxTokens ?? 2048,
-        temperature: opts.temperature ?? 0,
-        system: [
-          {
-            type: "text",
-            text: opts.system,
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        tools,
-        messages: opts.messages,
-      })
-    );
+    const res = await this.sendWithFallback({
+      model: opts.model ?? this.model,
+      max_tokens: opts.maxTokens ?? 2048,
+      temperature: opts.temperature ?? 0,
+      system: [
+        {
+          type: "text",
+          text: opts.system,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      tools,
+      messages: opts.messages,
+    });
     this.meterUsage(opts.model ?? this.model, res);
 
     const toolUses: LlmTurn["toolUses"] = [];
@@ -185,17 +194,15 @@ export class LlmClient {
     // unparseable input. Retry once with a doubled budget before giving up.
     let budget = opts.maxTokens ?? 2048;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const res = await this.withRetry(() =>
-        this.createMessage({
-          model,
-          max_tokens: budget,
-          temperature: 0,
-          system: opts.system,
-          tools: [tool],
-          tool_choice: { type: "tool", name: opts.toolName },
-          messages,
-        })
-      );
+      const res = await this.sendWithFallback({
+        model,
+        max_tokens: budget,
+        temperature: 0,
+        system: opts.system,
+        tools: [tool],
+        tool_choice: { type: "tool", name: opts.toolName },
+        messages,
+      });
       this.meterUsage(model, res);
       const block = res.content.find((b) => b.type === "tool_use");
       if (!block || block.type !== "tool_use")
@@ -209,6 +216,38 @@ export class LlmClient {
       return block.input as T;
     }
     throw new Error("Structured output truncated even after increasing the token budget");
+  }
+
+  /**
+   * Issue a request with retry, then — only if it still fails with a rate-limit
+   * / overloaded status after exhausting retries — retry on each configured
+   * cheaper fallback model in turn. A sustained 429 on the primary thus degrades
+   * to a working (if weaker) model instead of failing the run with no output. A
+   * non-retriable error (auth, bad request) on either the primary or a fallback
+   * is surfaced immediately rather than masked by the next model.
+   */
+  private async sendWithFallback(params: MessageCreateParamsNonStreaming): Promise<Message> {
+    try {
+      return await this.withRetry(() => this.createMessage(params));
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      if (!isRetriableStatus(status) || this.fallbacks.length === 0) throw err;
+      let lastErr = err;
+      for (const fb of this.fallbacks) {
+        if (fb === params.model) continue;
+        try {
+          const res = await this.withRetry(() => this.createMessage({ ...params, model: fb }));
+          this.onFallback?.({ from: params.model, to: fb, reason: `HTTP ${status}` });
+          return res;
+        } catch (e) {
+          lastErr = e;
+          // A real error on the fallback (auth/bad request) isn't a quota issue —
+          // don't keep walking the ladder hiding it; surface it.
+          if (!isRetriableStatus((e as { status?: number })?.status)) throw e;
+        }
+      }
+      throw lastErr;
+    }
   }
 
   /**

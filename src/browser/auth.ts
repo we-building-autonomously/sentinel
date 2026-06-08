@@ -30,6 +30,32 @@ export function detectAuthFailure(text: string): boolean {
   return SIGNALS.some((p) => p.test(text));
 }
 
+/**
+ * Phrases that mean the TEST itself is about a bad login being refused — e.g.
+ * "verify invalid credentials are rejected", "wrong password shows an error".
+ * When the intent reads this way, a detected auth failure is the EXPECTED
+ * outcome, so the loop must NOT hard-stop on it.
+ */
+const REJECTION_INTENT: RegExp[] = [
+  /\b(?:invalid|wrong|incorrect|bad|expired|empty|blank|mismatched)\b[^.]*\b(?:credential|password|login|email|username|sign[- ]?in)/i,
+  /\b(?:login|log[- ]?in|sign[- ]?in|sign[- ]?on|authentication|auth)\b[^.]*\b(?:fail|fails|failing|reject|rejected|denied|deny|blocked|refused|unsuccessful|error)/i,
+  /\b(?:rejects?|denies?|blocks?|refuses?)\b[^.]*\b(?:login|sign[- ]?in|credential|password|access)/i,
+];
+
+/**
+ * True when the test's task/intent/criteria describe verifying that a bad or
+ * invalid login is rejected — the one case where an observed auth failure is
+ * success, not a reason to stop.
+ */
+export function expectsLoginRejection(parts: {
+  task?: string;
+  intent?: string;
+  criteria?: string[];
+}): boolean {
+  const text = `${parts.task ?? ""} ${parts.intent ?? ""} ${(parts.criteria ?? []).join(" ")}`;
+  return REJECTION_INTENT.some((re) => re.test(text));
+}
+
 /** The observation banner for a detected login failure (empty string if none). */
 export function authFailureNote(text: string): string {
   return detectAuthFailure(text)

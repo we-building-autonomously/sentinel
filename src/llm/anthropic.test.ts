@@ -187,6 +187,82 @@ describe("LlmClient retry/backoff", () => {
   });
 });
 
+/** A client that 429s for any model in `capped`, else returns a tool message. */
+function modelAwareClient(capped: Set<string>, hardFail?: { model: string; status: number }) {
+  const calls: string[] = [];
+  const api: MessagesApi = {
+    messages: {
+      create: async (params: { model: string }) => {
+        calls.push(params.model);
+        if (hardFail && params.model === hardFail.model)
+          throw Object.assign(new Error(`HTTP ${hardFail.status}`), { status: hardFail.status });
+        if (capped.has(params.model)) throw Object.assign(new Error("HTTP 429"), { status: 429 });
+        return toolMessage({ a: "ok" }, "tool_use");
+      },
+    },
+  } as unknown as MessagesApi;
+  return { api, calls };
+}
+
+describe("LlmClient 429 model fallback", () => {
+  it("falls back to a cheaper model when the primary is rate-limited, and reports it", async () => {
+    const fake = modelAwareClient(new Set(["primary"]));
+    const seen: Array<{ from: string; to: string }> = [];
+    const llm = new LlmClient("k", "primary", undefined, 0, fake.api, {
+      sleep: async () => {},
+      rng: () => 0,
+      fallbacks: ["cheap"],
+      onFallback: (i) => seen.push(i),
+    });
+    const out = await llm.structured<{ a: string }>({ system: "s", prompt: "p", schema: SCHEMA, toolName: "submit" });
+    expect(out).toEqual({ a: "ok" });
+    expect(fake.calls).toEqual(["primary", "cheap"]); // tried primary, then the fallback
+    expect(seen[0]).toMatchObject({ from: "primary", to: "cheap", reason: "HTTP 429" });
+  });
+
+  it("walks the ladder until one model works", async () => {
+    const fake = modelAwareClient(new Set(["primary", "mid"]));
+    const llm = new LlmClient("k", "primary", undefined, 0, fake.api, {
+      sleep: async () => {},
+      rng: () => 0,
+      fallbacks: ["mid", "cheap"],
+    });
+    const turn = await llm.turn({ system: "s", messages: [] });
+    expect(turn.toolUses[0].name).toBe("submit");
+    expect(fake.calls).toEqual(["primary", "mid", "cheap"]);
+  });
+
+  it("throws the rate-limit error when no fallbacks are configured", async () => {
+    const fake = modelAwareClient(new Set(["primary"]));
+    const llm = new LlmClient("k", "primary", undefined, 0, fake.api, { sleep: async () => {}, rng: () => 0 });
+    await expect(llm.turn({ system: "s", messages: [] })).rejects.toThrow(/429/);
+    expect(fake.calls).toEqual(["primary"]);
+  });
+
+  it("does NOT fall back on a non-retriable primary error (e.g. 401)", async () => {
+    const fake = modelAwareClient(new Set(), { model: "primary", status: 401 });
+    const llm = new LlmClient("k", "primary", undefined, 0, fake.api, {
+      sleep: async () => {},
+      rng: () => 0,
+      fallbacks: ["cheap"],
+    });
+    await expect(llm.turn({ system: "s", messages: [] })).rejects.toThrow(/401/);
+    expect(fake.calls).toEqual(["primary"]); // a real error is surfaced, not masked by fallback
+  });
+
+  it("surfaces a non-retriable error from a fallback instead of walking past it", async () => {
+    // primary 429 → try "bad" which 401s: stop and surface the 401, don't try "cheap".
+    const fake = modelAwareClient(new Set(["primary"]), { model: "bad", status: 401 });
+    const llm = new LlmClient("k", "primary", undefined, 0, fake.api, {
+      sleep: async () => {},
+      rng: () => 0,
+      fallbacks: ["bad", "cheap"],
+    });
+    await expect(llm.structured({ system: "s", prompt: "p", schema: SCHEMA, toolName: "submit" })).rejects.toThrow(/401/);
+    expect(fake.calls).toEqual(["primary", "bad"]);
+  });
+});
+
 describe("isRetriableStatus", () => {
   it("retries rate-limit, overloaded and 5xx; not 2xx/4xx", () => {
     for (const s of [429, 529, 500, 503]) expect(isRetriableStatus(s)).toBe(true);

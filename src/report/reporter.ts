@@ -56,8 +56,11 @@ export function toMarkdown(r: RunReport): string {
   lines.push("## Checkpoints");
   for (const c of v.checkpoints) {
     const mark = c.status === "met" ? "✅" : c.status === "unmet" ? "❌" : "❔";
-    lines.push(`- ${mark} **${c.description}**`);
+    const weak = c.evidenceStrength && c.evidenceStrength !== "strong" ? ` _(evidence: ${c.evidenceStrength} — spot-check)_` : "";
+    lines.push(`- ${mark} **${c.description}**${weak}`);
     if (c.evidence) lines.push(`  - _${c.evidence}_`);
+    const proof = c.proofStep != null ? r.steps.find((s) => s.index === c.proofStep)?.result.screenshot : undefined;
+    if (proof) lines.push(`  - proof: [step #${c.proofStep! + 1} screenshot](${proof})`);
   }
   if (v.issues.length) {
     lines.push("");
@@ -213,9 +216,17 @@ export function toHtml(r: RunReport): string {
   const checkpointRows = v.checkpoints
     .map((c) => {
       const mark = c.status === "met" ? "✅" : c.status === "unmet" ? "❌" : "❔";
-      return `<li><span class="mark">${mark}</span> <strong>${esc(c.description)}</strong>${
+      const badge =
+        c.evidenceStrength && c.evidenceStrength !== "strong"
+          ? ` <span class="strength ${c.evidenceStrength}">evidence: ${c.evidenceStrength} · spot-check</span>`
+          : "";
+      const proof = c.proofStep != null ? r.steps.find((s) => s.index === c.proofStep)?.result.screenshot : undefined;
+      const thumb = proof
+        ? `<a class="proof" href="${esc(proof)}" target="_blank" title="proof: step #${c.proofStep! + 1}"><img src="${esc(proof)}" alt="proof for: ${esc(c.description)}"></a>`
+        : "";
+      return `<li><span class="mark">${mark}</span> <strong>${esc(c.description)}</strong>${badge}${
         c.evidence ? `<div class="evidence">${esc(c.evidence)}</div>` : ""
-      }</li>`;
+      }${thumb}</li>`;
     })
     .join("\n");
   const stepRows = r.steps
@@ -378,6 +389,11 @@ export function toHtml(r: RunReport): string {
   .mark { margin-right:8px; }
   .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:8px; }
   .evidence { color:#9aa4b2; font-size:13px; margin:4px 0 0 26px; }
+  .strength { font-size:11px; padding:1px 7px; border-radius:10px; vertical-align:middle; }
+  .strength.weak { background:#3a2e12; color:#f0c674; }
+  .strength.none { background:#3a1414; color:#f08c8c; }
+  .proof { display:inline-block; margin:8px 0 0 26px; }
+  .proof img { max-height:120px; max-width:260px; border:1px solid #1a2130; border-radius:6px; display:block; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
   td { padding:7px 9px; border-bottom:1px solid #1a2130; vertical-align:top; }
   tr.err td { background:rgba(220,38,38,.08); }

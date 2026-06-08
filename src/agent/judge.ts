@@ -34,8 +34,19 @@ const VERDICT_SCHEMA = {
           id: { type: "integer" },
           status: { type: "string", enum: ["met", "unmet", "unknown"] },
           evidence: { type: "string" },
+          proofStep: {
+            type: "integer",
+            description:
+              "1-based step number whose screenshot/trace entry most directly proves this checkpoint — the MOMENT it should hold. Use -1 if no single step proves it (e.g. it's about the initial page load).",
+          },
+          evidenceStrength: {
+            type: "string",
+            enum: ["strong", "weak", "none"],
+            description:
+              "strong = directly seen on a screenshot or a deterministic assertion; weak = inferred indirectly; none = not actually observable (status must then be unknown).",
+          },
         },
-        required: ["id", "status", "evidence"],
+        required: ["id", "status", "evidence", "proofStep", "evidenceStrength"],
       },
     },
     issues: { type: "array", items: { type: "string" } },
@@ -47,7 +58,13 @@ interface RawVerdict {
   decision: Verdict["decision"];
   confidence: number;
   summary: string;
-  checkpoints: Array<{ id: number; status: Checkpoint["status"]; evidence: string }>;
+  checkpoints: Array<{
+    id: number;
+    status: Checkpoint["status"];
+    evidence: string;
+    proofStep?: number;
+    evidenceStrength?: Checkpoint["evidenceStrength"];
+  }>;
   issues: string[];
 }
 
@@ -126,6 +143,13 @@ export async function judge(opts: {
   visual?: string;
   /** Final-page screenshot to attach as visual evidence (base64). */
   screenshot?: { data: string; mediaType: "image/png" | "image/jpeg" } | null;
+  /**
+   * Per-step screenshots (chronological, bounded) so the judge can assess each
+   * checkpoint AT THE MOMENT it should hold — an early checkpoint judged from an
+   * early frame, not the final one. This is what stops end-state (a dismissed
+   * banner, a navigated-away page) from contaminating an earlier checkpoint.
+   */
+  stepShots?: Array<{ step: number; label: string; data: string; mediaType: "image/png" | "image/jpeg" }>;
   model?: string;
 }): Promise<Verdict> {
   const { spec, plan, steps, done, exhausted, finalPageText } = opts;
@@ -241,19 +265,31 @@ ${
 FINAL VISIBLE PAGE TEXT:
 ${finalPageText.slice(0, 3000) || "(unavailable)"}
 ${
+  opts.stepShots?.length
+    ? "\nPER-STEP SCREENSHOTS are attached below, one per labeled step, in CHRONOLOGICAL order. Judge each checkpoint AT THE MOMENT it should hold: a checkpoint about the initial state or an early action (e.g. \"a banner is visible on load\") must be judged from the EARLIEST relevant screenshot — do NOT let a later frame (a dismissed banner, a page navigated away from) make an earlier checkpoint look unmet, or met. Set proofStep to the step number of the frame that proves each checkpoint."
+    : ""
+}${
   opts.screenshot
-    ? "\nA SCREENSHOT of the final page is attached below. Use it as visual evidence — judge any appearance/layout/visual checkpoint (alignment, overlap, broken images, color, truncation) from what you can actually SEE, not just the text."
+    ? "\nA SCREENSHOT of the FINAL page is attached below. Use it as visual evidence for end-state/appearance checkpoints (alignment, overlap, broken images, color, truncation) — but only for checkpoints about the final state."
     : ""
 }
-Render your verdict. Map each checkpoint id to met/unmet/unknown with evidence drawn from the trace.`;
+Render your verdict. Map each checkpoint id to met/unmet/unknown with evidence drawn from the trace, set proofStep to the step that proves it (or -1), and set evidenceStrength honestly — "none" (with status unknown) when you cannot actually observe it rather than guessing.`;
 
-  // When a screenshot is provided, send a multimodal prompt so the judge can
-  // SEE the page — text-only adjudication is blind to visual defects.
-  const promptContent: string | ContentBlockParam[] = opts.screenshot
-    ? [
-        { type: "text", text: prompt },
-        { type: "image", source: { type: "base64", media_type: opts.screenshot.mediaType, data: opts.screenshot.data } },
-      ]
+  // Send a multimodal prompt so the judge can SEE the run: the per-step frames
+  // (chronological, each preceded by its label) then the final-page shot. This
+  // lets it bind a checkpoint to the moment it held instead of reasoning about
+  // every checkpoint off a single end-state image.
+  const images: ContentBlockParam[] = [];
+  for (const s of opts.stepShots ?? []) {
+    images.push({ type: "text", text: `── screenshot ${s.label} ──` });
+    images.push({ type: "image", source: { type: "base64", media_type: s.mediaType, data: s.data } });
+  }
+  if (opts.screenshot) {
+    images.push({ type: "text", text: "── screenshot of the FINAL page ──" });
+    images.push({ type: "image", source: { type: "base64", media_type: opts.screenshot.mediaType, data: opts.screenshot.data } });
+  }
+  const promptContent: string | ContentBlockParam[] = images.length
+    ? [{ type: "text", text: prompt }, ...images]
     : prompt;
 
   const raw = await opts.llm.structured<RawVerdict>({
@@ -269,10 +305,15 @@ Render your verdict. Map each checkpoint id to met/unmet/unknown with evidence d
   const byId = new Map(raw.checkpoints.map((c) => [c.id, c]));
   const checkpoints: Checkpoint[] = plan.checkpoints.map((c) => {
     const r = byId.get(c.id);
+    // Normalize the judge's 1-based proofStep to a 0-based step index; -1/absent
+    // means "no single step proves it" and is dropped.
+    const proofStep = r?.proofStep != null && r.proofStep > 0 ? r.proofStep - 1 : undefined;
     return {
       ...c,
       status: r?.status ?? "unknown",
       evidence: r?.evidence,
+      proofStep,
+      evidenceStrength: r?.evidenceStrength,
     };
   });
 

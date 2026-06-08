@@ -5,6 +5,7 @@ import { ToolExecutor, TOOL_DEFS, type DoneSignal } from "../browser/tools.js";
 import { shouldUseVision, type PageSnapshot } from "../browser/indexer.js";
 import type { Plan, Step, ToolResult } from "../types.js";
 import { containsSecret } from "../report/secrets.js";
+import { detectAuthFailure } from "../browser/auth.js";
 import { AGENT_SYSTEM, agentGoalBlock } from "./prompts.js";
 import { LoopGuard } from "./guard.js";
 
@@ -156,6 +157,13 @@ export async function runAgent(opts: {
   maxDurationMs?: number;
   /** Injectable clock for determinism in tests. */
   now?: () => number;
+  /**
+   * Hard-stop the run the moment the app rejects the login, instead of letting
+   * the agent re-submit the credentials (which can trip brute-force protection
+   * and lock the account). Set false when verifying that a bad login IS
+   * rejected is the test's intent.
+   */
+  stopOnAuthFailure?: boolean;
   onStep?: (step: Step) => void;
 }): Promise<AgentRunResult> {
   const { llm, session, plan, maxSteps } = opts;
@@ -345,6 +353,20 @@ export async function runAgent(opts: {
       executed.result.screenshot = undefined;
       executed.result.summary += " [screenshot withheld — page displayed a secret]";
     }
+
+    // Hard backstop against an auth lockout: the app rejected the credentials.
+    // Stop NOW rather than let the agent re-enter the same login (repeated
+    // attempts trip Auth0/brute-force protection and lock the account). The
+    // agent prompt also nudges this; the guard enforces it deterministically.
+    // Skipped when the test's intent is to verify a bad login IS rejected.
+    if (opts.stopOnAuthFailure && detectAuthFailure(snap.text)) {
+      stoppedBy =
+        "Login was rejected by the app — the credentials appear wrong or expired. " +
+        "Stopped immediately without retrying, to avoid tripping brute-force protection or locking the account. " +
+        "Fix the credentials in the spec and re-run.";
+      break;
+    }
+
     if (observationUnchanged(prevObsSig, snap)) {
       resultBlocks.push({
         type: "text",

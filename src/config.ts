@@ -155,3 +155,28 @@ export function loadConfig(
 export function configSummary(file: Partial<SentinelConfig> = readConfigFile()): Omit<SentinelConfig, "apiKey"> {
   return resolveDefaults({}, file);
 }
+
+/** Default Anthropic model ids for the fallback ladder. */
+const SONNET = "claude-sonnet-4-6";
+const HAIKU = "claude-haiku-4-5-20251001";
+
+/**
+ * Cheaper models to fall back to, in order, when the primary is 429-rate-limited
+ * even after retries — so a quota-capped key degrades to a working model instead
+ * of failing the whole run with "test plan could not be generated" and 0 steps.
+ * Overridable via SENTINEL_FALLBACK_MODELS (comma-separated); set it empty to
+ * disable fallback entirely.
+ */
+export function modelFallbacks(model: string): string[] {
+  const env = process.env.SENTINEL_FALLBACK_MODELS;
+  if (env != null) {
+    return env
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .filter((m) => m !== model);
+  }
+  if (/opus/i.test(model)) return [SONNET, HAIKU];
+  if (/sonnet/i.test(model)) return [HAIKU];
+  return [];
+}

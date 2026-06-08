@@ -1,5 +1,47 @@
-import type { RunReport } from "../types.js";
+import type { RunReport, TestSpec } from "../types.js";
 import { scrubSecrets } from "./secrets.js";
+
+const MASK = "••••••";
+
+/**
+ * Collect every secret VALUE configured in a spec — the strings that must never
+ * be echoed back in a log, trace, or report: the login password and TOTP seed,
+ * any custom `auth.extra` values, request headers (API auth), basic-auth
+ * password, cookie values, and setup/teardown hook headers/bodies. Pure: it
+ * reads the spec and returns the list, mutating nothing.
+ *
+ * Shared by `redactReport` (artifacts) and the live runner (stdout/stream) so a
+ * password typed during the run is masked at the moment it would be printed —
+ * not only later, when the report is written.
+ */
+export function collectSpecSecrets(spec: TestSpec): string[] {
+  const secrets: string[] = [];
+  const auth = spec.app.auth;
+  if (auth) {
+    if (auth.password) secrets.push(auth.password);
+    if (auth.totpSecret) secrets.push(auth.totpSecret);
+    for (const v of Object.values(auth.extra ?? {})) if (v) secrets.push(v);
+  }
+  const app = spec.app;
+  for (const v of Object.values(app.headers ?? {})) if (v) secrets.push(v);
+  if (app.httpCredentials?.password) secrets.push(app.httpCredentials.password);
+  for (const ck of app.cookies ?? []) if (ck.value) secrets.push(ck.value);
+  for (const hook of [...(spec.setup ?? []), ...(spec.teardown ?? [])]) {
+    for (const v of Object.values(hook.headers ?? {})) if (v) secrets.push(v);
+    if (hook.body) secrets.push(hook.body);
+  }
+  return secrets;
+}
+
+/**
+ * Build a scrubber that masks the given known secrets verbatim, then any
+ * secret-SHAPED tokens the app may have revealed (a freshly created API key, a
+ * token shown once) that the harness couldn't know in advance.
+ */
+export function makeScrubber(secrets: string[]): (s: string) => string {
+  return (s: string) =>
+    scrubSecrets(secrets.reduce((acc, sec) => (sec ? acc.split(sec).join(MASK) : acc), s));
+}
 
 /**
  * Return a deep clone of the report with secrets (password + auth.extra values)
@@ -9,46 +51,25 @@ import { scrubSecrets } from "./secrets.js";
  */
 export function redactReport(report: RunReport): RunReport {
   const clone: RunReport = JSON.parse(JSON.stringify(report));
-  const secrets: string[] = [];
+  const secrets = collectSpecSecrets(clone.spec);
+  // Mask the secret-bearing spec fields in the echoed spec itself.
   const auth = clone.spec.app.auth;
   if (auth) {
-    if (auth.password) secrets.push(auth.password);
-    if (auth.totpSecret) secrets.push(auth.totpSecret);
-    for (const v of Object.values(auth.extra ?? {})) secrets.push(v);
-    if (auth.password) auth.password = "••••••";
-    if (auth.totpSecret) auth.totpSecret = "••••••";
-    if (auth.extra) auth.extra = Object.fromEntries(Object.keys(auth.extra).map((k) => [k, "••••••"]));
+    if (auth.password) auth.password = MASK;
+    if (auth.totpSecret) auth.totpSecret = MASK;
+    if (auth.extra) auth.extra = Object.fromEntries(Object.keys(auth.extra).map((k) => [k, MASK]));
   }
-  // Header values, basic-auth password, and cookie values are test-config secrets.
   const app = clone.spec.app;
-  if (app.headers) {
-    for (const v of Object.values(app.headers)) if (v) secrets.push(v);
-    app.headers = Object.fromEntries(Object.keys(app.headers).map((k) => [k, "••••••"]));
-  }
-  if (app.httpCredentials?.password) {
-    secrets.push(app.httpCredentials.password);
-    app.httpCredentials.password = "••••••";
-  }
-  for (const ck of app.cookies ?? []) {
-    if (ck.value) secrets.push(ck.value);
-    ck.value = "••••••";
-  }
-  // Setup/teardown hooks hold API auth in their headers and may carry secrets in
-  // their body — collect those as secrets and mask them in the echoed spec.
+  if (app.headers) app.headers = Object.fromEntries(Object.keys(app.headers).map((k) => [k, MASK]));
+  if (app.httpCredentials?.password) app.httpCredentials.password = MASK;
+  for (const ck of app.cookies ?? []) ck.value = MASK;
   for (const hook of [...(clone.spec.setup ?? []), ...(clone.spec.teardown ?? [])]) {
-    if (hook.headers) {
-      for (const v of Object.values(hook.headers)) if (v) secrets.push(v);
-      hook.headers = Object.fromEntries(Object.keys(hook.headers).map((k) => [k, "••••••"]));
-    }
-    if (hook.body) {
-      secrets.push(hook.body);
-      hook.body = "••••••";
-    }
+    if (hook.headers) hook.headers = Object.fromEntries(Object.keys(hook.headers).map((k) => [k, MASK]));
+    if (hook.body) hook.body = MASK;
   }
   // Mask known spec credentials, then any secret-SHAPED tokens the app revealed
   // (a freshly created API key, a token shown once) so they never hit an artifact.
-  const scrub = (s: string) =>
-    scrubSecrets(secrets.reduce((acc, sec) => (sec ? acc.split(sec).join("••••••") : acc), s));
+  const scrub = makeScrubber(secrets);
   for (const step of clone.steps) {
     step.result.summary = scrub(step.result.summary);
     if (typeof step.result.data === "string") step.result.data = scrub(step.result.data);

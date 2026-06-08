@@ -256,4 +256,34 @@ describe("report rendering", () => {
     expect(toMarkdown(r)).toContain("$0.0810");
     expect(toHtml(r)).toContain("12.0k in");
   });
+
+  it("renders a checkpoint's proving screenshot and a weak-evidence badge", () => {
+    const r = fixture({
+      steps: [
+        {
+          index: 0,
+          call: { name: "click", input: { index: 1 } },
+          result: { ok: true, summary: "Clicked Open", screenshot: "screenshot-1.png" },
+          url: "https://app.example.com",
+          timestamp: "2026-01-01T00:00:00Z",
+        },
+      ],
+      verdict: {
+        decision: "pass",
+        confidence: 0.7,
+        summary: "ok",
+        checkpoints: [
+          { id: 1, description: "Banner visible", status: "met", evidence: "seen at load", proofStep: 0, evidenceStrength: "weak" },
+        ],
+        issues: [],
+      },
+    });
+    const html = toHtml(r);
+    expect(html).toContain('href="screenshot-1.png"'); // links the proving frame
+    expect(html).toContain('src="screenshot-1.png"'); // inlines the thumbnail
+    expect(html).toMatch(/evidence: weak/); // surfaces the spot-check flag
+    const md = toMarkdown(r);
+    expect(md).toMatch(/proof: \[step #1 screenshot\]\(screenshot-1\.png\)/);
+    expect(md).toMatch(/evidence: weak/);
+  });
 });

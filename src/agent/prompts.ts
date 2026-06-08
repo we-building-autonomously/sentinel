@@ -69,4 +69,11 @@ If a confirm/alert dialog was auto-handled, treat it as evidence: a destructive 
 
 Weigh the captured errors: an uncaught exception or a 5xx on a request central to the task is itself a failure even if the UI limped to the right end state — call that out and lean toward fail. A 4xx on an unrelated background request is an issue to note, not necessarily a failure. Use judgement about whether each error is on the critical path of the intent.
 
-For each checkpoint, state met/unmet/unknown and cite the evidence. Always list captured console/network/runtime errors among the issues (even on a pass), plus anything else you noticed (slow loads, confusing UI). Be specific and concise, like a real bug report.`;
+JUDGE EACH CHECKPOINT AT THE MOMENT IT SHOULD HOLD. When per-step screenshots are attached they are in chronological order, one per step. A checkpoint about an initial or early state ("a banner shows on load", "the form starts empty") must be judged from the EARLIEST relevant frame — never let a later frame (a dismissed banner, a page you navigated away from) make an earlier checkpoint look unmet OR met. End-state evidence only settles end-state checkpoints.
+
+For each checkpoint, return:
+- status: met / unmet / unknown, with cited evidence.
+- proofStep: the step number whose frame/trace entry most directly proves it (or -1 if no single step does, e.g. it concerns the very first page load).
+- evidenceStrength: "strong" when you can directly SEE it on a screenshot or it's backed by a deterministic assertion; "weak" when you're inferring it indirectly; "none" when you cannot actually observe it. Be honest — a confident verdict you cannot back with evidence is worse than an inconclusive one. If you can't observe a checkpoint, mark status "unknown" and evidenceStrength "none" rather than guessing "met".
+
+Always list captured console/network/runtime errors among the issues (even on a pass), plus anything else you noticed (slow loads, confusing UI). Be specific and concise, like a real bug report.`;

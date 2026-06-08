@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { loadConfig, type SentinelConfig } from "./config.js";
+import { loadConfig, modelFallbacks, type SentinelConfig } from "./config.js";
 import { LlmClient } from "./llm/anthropic.js";
 import { UsageMeter } from "./usage.js";
 import { BrowserSession } from "./browser/session.js";
@@ -21,8 +21,10 @@ import { evaluateStateExpectations } from "./browser/expect-state.js";
 import { runHooks } from "./hooks.js";
 import { evaluateDownloadExpectations } from "./browser/expect-download.js";
 import { runAgent } from "./agent/loop.js";
+import { expectsLoginRejection } from "./browser/auth.js";
 import { judge, shouldVisionJudge } from "./agent/judge.js";
 import { containsSecret } from "./report/secrets.js";
+import { collectSpecSecrets, makeScrubber } from "./report/redact.js";
 import { writeReports } from "./report/reporter.js";
 import { TestSpecSchema, type TestSpec, type RunReport, type Step, type Plan } from "./types.js";
 import { slugify } from "./util.js";
@@ -72,6 +74,72 @@ export function buildContext(spec: TestSpec): string | undefined {
       `The browser clock is frozen to ${new Date(clockMs).toISOString()} — treat that as "now" (the app's "today", timestamps and countdowns reflect it).`
     );
   return lines.length ? "APP CONTEXT:\n" + lines.join("\n") : undefined;
+}
+
+/**
+ * A shallow copy of a step with its human-visible fields scrubbed of secrets,
+ * for the LIVE callback (stdout / web stream). The in-memory step the model and
+ * report keep is left intact — artifacts are redacted separately at write time —
+ * but anything printed as it happens (e.g. `Typed "<password>"`) is masked here,
+ * so a secret never reaches a console or a viewer in the clear.
+ */
+function redactStepForDisplay(step: Step, scrub: (s: string) => string): Step {
+  return {
+    ...step,
+    thought: step.thought ? scrub(step.thought) : step.thought,
+    call: { ...step.call, input: JSON.parse(scrub(JSON.stringify(step.call.input))) },
+    result: {
+      ...step.result,
+      summary: scrub(step.result.summary),
+      ...(typeof step.result.data === "string" ? { data: scrub(step.result.data) } : {}),
+    },
+  };
+}
+
+/**
+ * Upper bound on per-step screenshots sent to the judge. Enough to bind early
+ * vs. late checkpoints to the right moment without ballooning judge cost; when
+ * a run has more frames they're sampled evenly, always keeping the first & last.
+ */
+const MAX_JUDGE_SHOTS = 6;
+
+/** Sample at most `max` items, evenly spaced, always including the first and last. */
+function sampleEvenly<T>(items: T[], max: number): T[] {
+  if (items.length <= max) return items;
+  const out: T[] = [];
+  for (let i = 0; i < max; i++) {
+    out.push(items[Math.round((i * (items.length - 1)) / (max - 1))]);
+  }
+  return out;
+}
+
+/**
+ * Read the surviving per-step screenshots off disk as base64, so the judge can
+ * assess each checkpoint at the moment it should hold (not just from the final
+ * frame). Frames withheld during the run because the page showed a secret have
+ * no `screenshot` and are skipped; unreadable files are skipped too.
+ */
+function collectStepShots(
+  steps: Step[],
+  runDir: string,
+  max: number
+): Array<{ step: number; label: string; data: string; mediaType: "image/png" }> {
+  const withShot = steps.filter((s) => s.result.screenshot);
+  return sampleEvenly(withShot, max)
+    .map((s) => {
+      try {
+        const data = fs.readFileSync(path.join(runDir, s.result.screenshot!)).toString("base64");
+        return {
+          step: s.index,
+          label: `after step #${s.index + 1}: ${s.call.name} — ${s.result.summary.slice(0, 80)}`,
+          data,
+          mediaType: "image/png" as const,
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter((s): s is NonNullable<typeof s> => s != null);
 }
 
 /**
@@ -152,6 +220,13 @@ export async function runSpec(specInput: unknown, options: RunOptions = {}): Pro
   const rendered = applyTemplates(specInput, withVars(makeContext(), options.vars ?? {}));
   const spec = TestSpecSchema.parse(rendered);
   const cfg = loadConfig(options.config);
+  // Scrub secrets out of anything emitted LIVE (a typed password, an API key the
+  // page revealed) before it reaches the caller's stdout/stream. Artifacts are
+  // redacted separately when written.
+  const scrub = makeScrubber(collectSpecSecrets(spec));
+  const onStep = options.onStep
+    ? (step: Step) => options.onStep!(redactStepForDisplay(step, scrub))
+    : undefined;
   const startedAt = new Date();
   const id = spec.id ?? slugify(spec.title) ?? "test";
   const stamp = startedAt.toISOString().replace(/[:.]/g, "-");
@@ -160,8 +235,22 @@ export async function runSpec(specInput: unknown, options: RunOptions = {}): Pro
   options.onStart?.({ runDir });
 
   const meter = new UsageMeter();
-  const llm = options.clients?.llm ?? new LlmClient(cfg.apiKey, cfg.model, meter);
-  const judgeLlm = options.clients?.judge ?? new LlmClient(cfg.apiKey, cfg.judgeModel, meter);
+  // On a sustained 429, degrade to a cheaper model rather than failing the run;
+  // disclose the substitution on stderr so the cost/quality change is visible.
+  const onFallback = (info: { from: string; to: string }) =>
+    process.stderr.write(`⚠ ${info.from} is rate-limited — falling back to ${info.to} for this call.\n`);
+  const llm =
+    options.clients?.llm ??
+    new LlmClient(cfg.apiKey, cfg.model, meter, undefined, undefined, {
+      fallbacks: modelFallbacks(cfg.model),
+      onFallback,
+    });
+  const judgeLlm =
+    options.clients?.judge ??
+    new LlmClient(cfg.apiKey, cfg.judgeModel, meter, undefined, undefined, {
+      fallbacks: modelFallbacks(cfg.judgeModel),
+      onFallback,
+    });
 
   const vp = resolveViewport(spec.viewport);
   const session = new BrowserSession({
@@ -346,7 +435,8 @@ export async function runSpec(specInput: unknown, options: RunOptions = {}): Pro
       maxSteps,
       maxDurationMs: cfg.maxDurationMs,
       context: [buildContext(spec), vpNote, mockNote, uploadNote, navNote].filter(Boolean).join("\n\n") || undefined,
-      onStep: options.onStep,
+      onStep,
+      stopOnAuthFailure: !expectsLoginRejection(spec),
     });
 
     // Optional accessibility audit of the final page.
@@ -463,6 +553,10 @@ export async function runSpec(specInput: unknown, options: RunOptions = {}): Pro
         finalUrl: finalSnap.url,
         finalTitle: finalSnap.title,
         screenshot: judgeShot,
+        // Per-step frames so the judge binds each checkpoint to the moment it
+        // held. Frames showing a secret were already dropped during the run
+        // (their `screenshot` was removed), so collectStepShots skips them.
+        stepShots: collectStepShots(run.steps, runDir, MAX_JUDGE_SHOTS),
         errorState: finalSnap.errorState ?? null,
         requestChecks: requestChecks.length ? requestChecks.map((c) => c.detail) : undefined,
         textChecks: textChecks.length ? textChecks.map((c) => c.detail) : undefined,
